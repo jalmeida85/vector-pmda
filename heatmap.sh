@@ -3,8 +3,8 @@ TS=`date +%Y%m%d-%T`
 
 #DIR
 WEBDIR=/usr/share/pcp/jsdemos/heatmap
-WDIR=/mnt/logs/pcp/generic/HEATMAP
-BDIR=/var/lib/pcp/pmdas/generic/BINHeatMap
+WDIR=/var/log/pcp/vector/HEATMAP
+BDIR=/var/lib/pcp/pmdas/vector/BINHeatMap
 #FILE
 SVG=$WEBDIR/heatmap.svg
 PERF=$WDIR/perf.data.$TS

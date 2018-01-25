@@ -12,20 +12,20 @@
 # or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 # for more details.
 #
-# Install the generic PMDA and/or PMNS
+# Install the vector PMDA and/or PMNS
 #
 
 . $PCP_DIR/etc/pcp.env
 . $PCP_SHARE_DIR/lib/pmdaproc.sh
 
-iam=generic
+iam=vector
 pmda_interface=2
 forced_restart=true
 
 pmdaSetup
 pmdaInstall
 
-PMWEBD_LOG_DIR=/mnt/logs/pcp/pmwebd
+PMWEBD_LOG_DIR=/var/log/pcp/pmwebd
 
 if [ ! -d "$PMWEBD_LOG_DIR" ]; then
 	mkdir $PMWEBD_LOG_DIR

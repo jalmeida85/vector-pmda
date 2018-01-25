@@ -15,7 +15,7 @@
 # with this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
-# generic PMDA help file in the ASCII format
+# vector PMDA help file in the ASCII format
 #
 # lines beginning with a # are ignored
 # lines beginning @ introduce a new entry of the form
@@ -31,9 +31,14 @@
 # blank lines before the @ line are ignored
 #
 
-@ generic.systack The time in seconds since 1 Jan 1970
-The time in seconds since the 1st of January, 1970.
-@ generic.jstack The time in seconds since 1 Jan 1970
-The time in seconds since the 1st of January, 1970.
-@ generic.heatmap The time in seconds since 1 Jan 1970
-The time in seconds since the 1st of January, 1970.
+@ vector.task.cpuflamegraph CPU flame graph.
+@ vector.task.disklatencyheatmap Status of a disk I/O latency heatmap request.
+@ vector.task.jstackflamegraph Status of a jstack request.
+@ vector.task.pnamecpuflamegraph Profile CPU instruction pointer and create a package name flame graph.
+@ vector.task.uninlinedcpuflamegraph Profile CPU stack traces with some uninlining for a flame graph.
+@ vector.task.pagefaultflamegraph Trace page faults with stacks and create a flame graph.
+@ vector.task.diskioflamegraph Trace disk I/O issues with stacks and create a flame graph.
+@ vector.task.ipcflamegraph Instructions-per-cycle flame graph (requires PMC availability).
+@ vector.task.cswflamegraph Context switch flame graph (requires BPF features).
+@ vector.task.offcpuflamegraph Off-CPU time flame graph (requires BPF features).
+@ vector.task.offwakeflamegraph Off-wake time flame graph (requires BPF features).

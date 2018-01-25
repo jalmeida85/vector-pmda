@@ -17,17 +17,31 @@
 #
 # The input is stack frames and sample counts formatted as single lines.  Each
 # frame in the stack is semicolon separated, with a space and count at the end
-# of the line.  These can be generated using DTrace with stackcollapse.pl,
-# and other tools using the stackcollapse variants.
+# of the line.  These can be generated for Linux perf script output using
+# stackcollapse-perf.pl, for DTrace using stackcollapse.pl, and for other tools
+# using the other stackcollapse programs.  Example input:
+#
+#  swapper;start_kernel;rest_init;cpu_idle;default_idle;native_safe_halt 1
 #
 # An optional extra column of counts can be provided to generate a differential
 # flame graph of the counts, colored red for more, and blue for less.  This
 # can be useful when using flame graphs for non-regression testing.
 # See the header comment in the difffolded.pl program for instructions.
 #
-# The output graph shows relative presence of functions in stack samples.  The
-# ordering on the x-axis has no meaning; since the data is samples, time order
-# of events is not known.  The order used sorts function names alphabetically.
+# The input functions can optionally have annotations at the end of each
+# function name, following a precedent by some tools (Linux perf's _[k]):
+# 	_[k] for kernel
+#	_[i] for inlined
+#	_[j] for jit
+#	_[w] for waker
+# Some of the stackcollapse programs support adding these annotations, eg,
+# stackcollapse-perf.pl --kernel --jit. They are used merely for colors by
+# some palettes, eg, flamegraph.pl --color=java.
+#
+# The output flame graph shows relative presence of functions in stack samples.
+# The ordering on the x-axis has no meaning; since the data is samples, time
+# order of events is not known.  The order used sorts function names
+# alphabetically.
 #
 # While intended to process stack samples, this can also process stack traces.
 # For example, tracing stacks for memory allocation, or resource usage.  You
@@ -80,6 +94,8 @@ use strict;
 
 use Getopt::Long;
 
+use open qw(:std :utf8);
+
 # tunables
 my $encoding;
 my $fonttype = "Verdana";
@@ -107,28 +123,32 @@ my $titletext = "";             # centered heading
 my $titledefault = "Flame Graph";	# overwritten by --title
 my $titleinverted = "Icicle Graph";	#   "    "
 my $searchcolor = "rgb(230,0,230)";	# color for search highlighting
+my $notestext = "";		# embedded notes in SVG
+my $subtitletext = "";		# second level title (optional)
 my $help = 0;
 
 sub usage {
 	die <<USAGE_END;
 USAGE: $0 [options] infile > outfile.svg\n
-	--title       # change title text
-	--width       # width of image (default 1200)
-	--height      # height of each frame (default 16)
-	--minwidth    # omit smaller functions (default 0.1 pixels)
-	--fonttype    # font type (default "Verdana")
-	--fontsize    # font size (default 12)
-	--countname   # count type label (default "samples")
-	--nametype    # name type label (default "Function:")
-	--colors      # set color palette. choices are: hot (default), mem, io,
-	              # wakeup, chain, java, js, perl, red, green, blue, aqua,
-	              # yellow, purple, orange
-	--hash        # colors are keyed by function name hash
-	--cp          # use consistent palette (palette.map)
-	--reverse     # generate stack-reversed flame graph
-	--inverted    # icicle graph
-	--negate      # switch differential hues (blue<->red)
-	--help        # this message
+	--title TEXT     # change title text
+	--subtitle TEXT  # second level title (optional)
+	--width NUM      # width of image (default 1200)
+	--height NUM     # height of each frame (default 16)
+	--minwidth NUM   # omit smaller functions (default 0.1 pixels)
+	--fonttype FONT  # font type (default "Verdana")
+	--fontsize NUM   # font size (default 12)
+	--countname TEXT # count type label (default "samples")
+	--nametype TEXT  # name type label (default "Function:")
+	--colors PALETTE # set color palette. choices are: hot (default), mem,
+	                 # io, wakeup, chain, java, js, perl, red, green, blue,
+	                 # aqua, yellow, purple, orange
+	--hash           # colors are keyed by function name hash
+	--cp             # use consistent palette (palette.map)
+	--reverse        # generate stack-reversed flame graph
+	--inverted       # icicle graph
+	--negate         # switch differential hues (blue<->red)
+	--notes TEXT     # add notes comment in SVG (for debugging)
+	--help           # this message
 
 	eg,
 	$0 --title="Flame Graph: malloc()" trace.txt > graph.svg
@@ -144,6 +164,7 @@ GetOptions(
 	'fontwidth=f' => \$fontwidth,
 	'minwidth=f'  => \$minwidth,
 	'title=s'     => \$titletext,
+	'subtitle=s'  => \$subtitletext,
 	'nametype=s'  => \$nametype,
 	'countname=s' => \$countname,
 	'nameattr=s'  => \$nameattrfile,
@@ -155,13 +176,15 @@ GetOptions(
 	'reverse'     => \$stackreverse,
 	'inverted'    => \$inverted,
 	'negate'      => \$negate,
+	'notes=s'     => \$notestext,
 	'help'        => \$help,
 ) or usage();
 $help && usage();
 
 # internals
-my $ypad1 = $fontsize * 4;      # pad top, include title
+my $ypad1 = $fontsize * 3;      # pad top, include title
 my $ypad2 = $fontsize * 2 + 10; # pad bottom, include labels
+my $ypad3 = $fontsize * 2;      # pad top, include subtitle (optional)
 my $xpad = 10;                  # pad lefm and right
 my $framepad = 1;		# vertical padding for frames
 my $depthmax = 0;
@@ -186,6 +209,10 @@ if ($nameattrfile) {
 		die "Invalid format in $nameattrfile" unless defined $attrstr;
 		$nameattr{$funcname} = { map { split /=/, $_, 2 } split /\t/, $attrstr };
 	}
+}
+
+if ($notestext =~ /[<>]/) {
+	die "Notes string can't contain < or >"
 }
 
 # background colors:
@@ -219,6 +246,7 @@ if ($colors =~ /^(io|wakeup|red|green|blue|aqua|yellow|purple|orange)$/) {
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <svg version="1.1" width="$w" height="$h" onload="init(evt)" viewBox="0 0 $w $h" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES: $notestext -->
 SVG
 	}
 
@@ -341,12 +369,20 @@ sub color {
 
 	# multi palettes
 	if (defined $type and $type eq "java") {
-		if ($name =~ m:/:) {		# Java (match "/" in path)
-			$type = "green"
+		# Handle both annotations (_[j], _[i], ...; which are
+		# accurate), as well as input that lacks any annotations, as
+		# best as possible. Without annotations, we get a little hacky
+		# and match on java|org|com, etc.
+		if ($name =~ m:_\[j\]$:) {	# jit annotation
+			$type = "green";
+		} elsif ($name =~ m:_\[i\]$:) {	# inline annotation
+			$type = "aqua";
+		} elsif ($name =~ m:^L?(java|org|com|io|sun)/:) {	# Java
+			$type = "green";
 		} elsif ($name =~ /::/) {	# C++
 			$type = "yellow";
-		} elsif ($name =~ m:_\[k\]:) {	# kernel
-			$type = "orange"
+		} elsif ($name =~ m:_\[k\]$:) {	# kernel annotation
+			$type = "orange";
 		} else {			# system
 			$type = "red";
 		}
@@ -357,24 +393,34 @@ sub color {
 			$type = "yellow";
 		} elsif ($name =~ m:Perl: or $name =~ m:\.pl:) {	# Perl
 			$type = "green";
-		} elsif ($name =~ m:_\[k\]:) {	# kernel
-			$type = "orange"
+		} elsif ($name =~ m:_\[k\]$:) {	# kernel
+			$type = "orange";
 		} else {			# system
 			$type = "red";
 		}
 		# fall-through to color palettes
 	}
 	if (defined $type and $type eq "js") {
-		if ($name =~ /::/) {		# C++
+		# Handle both annotations (_[j], _[i], ...; which are
+		# accurate), as well as input that lacks any annotations, as
+		# best as possible. Without annotations, we get a little hacky,
+		# and match on a "/" with a ".js", etc.
+		if ($name =~ m:_\[j\]$:) {	# jit annotation
+			if ($name =~ m:/:) {
+				$type = "green";	# source
+			} else {
+				$type = "aqua";		# builtin
+			}
+		} elsif ($name =~ /::/) {	# C++
 			$type = "yellow";
-		} elsif ($name =~ m:/:) {	# JavaScript (match "/" in path)
-			$type = "green"
+		} elsif ($name =~ m:/.*\.js:) {	# JavaScript (match "/" in path)
+			$type = "green";
 		} elsif ($name =~ m/:/) {	# JavaScript (match ":" in builtin)
-			$type = "aqua"
+			$type = "aqua";
 		} elsif ($name =~ m/^ $/) {	# Missing symbol
-			$type = "green"
+			$type = "green";
 		} elsif ($name =~ m:_\[k\]:) {	# kernel
-			$type = "orange"
+			$type = "orange";
 		} else {			# system
 			$type = "red";
 		}
@@ -569,22 +615,19 @@ foreach (sort @Data) {
 		$maxdelta = abs($delta) if abs($delta) > $maxdelta;
 	}
 
-	# clean up SVG breaking characters:
-	$stack =~ tr/<>/()/;
-
 	# for chain graphs, annotate waker frames with "_[w]", for later
 	# coloring. This is a hack, but has a precedent ("_[k]" from perf).
 	if ($colors eq "chain") {
-		my @parts = split ";-;", $stack;
+		my @parts = split ";--;", $stack;
 		my @newparts = ();
 		$stack = shift @parts;
-		$stack .= ";-;";
+		$stack .= ";--;";
 		foreach my $part (@parts) {
 			$part =~ s/;/_[w];/g;
 			$part .= "_[w]";
 			push @newparts, $part;
 		}
-		$stack .= join ";-;", @parts;
+		$stack .= join ";--;", @parts;
 	}
 
 	# merge frames and populate %Node:
@@ -635,7 +678,8 @@ while (my ($id, $node) = each %Node) {
 }
 
 # draw canvas, and embed interactive JavaScript program
-my $imageheight = ($depthmax * $frameheight) + $ypad1 + $ypad2;
+my $imageheight = (($depthmax + 1) * $frameheight) + $ypad1 + $ypad2;
+$imageheight += $ypad3 if $subtitletext ne "";
 my $im = SVG->new();
 $im->header($imagewidth, $imageheight);
 my $inc = <<INC;
@@ -651,8 +695,8 @@ my $inc = <<INC;
 <script type="text/ecmascript">
 <![CDATA[
 	var details, searchbtn, matchedtxt, svg;
-	function init(evt) { 
-		details = document.getElementById("details").firstChild; 
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
 		searchbtn = document.getElementById("search");
 		matchedtxt = document.getElementById("matched");
 		svg = document.getElementsByTagName("svg")[0];
@@ -702,8 +746,8 @@ my $inc = <<INC;
 	}
 	function g_to_func(e) {
 		var func = g_to_text(e);
-		if (func != null)
-			func = func.replace(/ .*/, "");
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
 		return (func);
 	}
 	function update_text(e) {
@@ -712,20 +756,20 @@ my $inc = <<INC;
 		var w = parseFloat(r.attributes["width"].value) -3;
 		var txt = find_child(e, "title").textContent.replace(/\\([^(]*\\)\$/,"");
 		t.attributes["x"].value = parseFloat(r.attributes["x"].value) +3;
-		
+
 		// Smaller than this size won't fit anything
 		if (w < 2*$fontsize*$fontwidth) {
 			t.textContent = "";
 			return;
 		}
-		
+
 		t.textContent = txt;
 		// Fit in full text width
 		if (/^ *\$/.test(txt) || t.getSubStringLength(0, txt.length) < w)
 			return;
-		
+
 		for (var x=txt.length-2; x>0; x--) {
-			if (t.getSubStringLength(0, x+2) <= w) { 
+			if (t.getSubStringLength(0, x+2) <= w) {
 				t.textContent = txt.substring(0,x) + "..";
 				return;
 			}
@@ -756,7 +800,7 @@ my $inc = <<INC;
 				e.attributes["width"].value = parseFloat(e.attributes["width"].value) * ratio;
 			}
 		}
-		
+
 		if (e.childNodes == undefined) return;
 		for(var i=0, c=e.childNodes; i<c.length; i++) {
 			zoom_child(c[i], x-$xpad, ratio);
@@ -778,20 +822,20 @@ my $inc = <<INC;
 			zoom_parent(c[i]);
 		}
 	}
-	function zoom(node) { 
+	function zoom(node) {
 		var attr = find_child(node, "rect").attributes;
 		var width = parseFloat(attr["width"].value);
 		var xmin = parseFloat(attr["x"].value);
 		var xmax = parseFloat(xmin + width);
 		var ymin = parseFloat(attr["y"].value);
 		var ratio = (svg.width.baseVal.value - 2*$xpad) / width;
-		
+
 		// XXX: Workaround for JavaScript float issues (fix me)
 		var fudge = 0.0001;
-		
+
 		var unzoombtn = document.getElementById("unzoom");
 		unzoombtn.style["opacity"] = "1.0";
-		
+
 		var el = document.getElementsByTagName("g");
 		for(var i=0;i<el.length;i++){
 			var e = el[i];
@@ -833,7 +877,7 @@ my $inc = <<INC;
 	function unzoom() {
 		var unzoombtn = document.getElementById("unzoom");
 		unzoombtn.style["opacity"] = "0.0";
-		
+
 		var el = document.getElementsByTagName("g");
 		for(i=0;i<el.length;i++) {
 			el[i].style["display"] = "block";
@@ -841,7 +885,7 @@ my $inc = <<INC;
 			zoom_reset(el[i]);
 			update_text(el[i]);
 		}
-	}	
+	}
 
 	// search
 	function reset_search() {
@@ -929,18 +973,16 @@ my $inc = <<INC;
 		// sort the matched frames by their x location
 		// ascending, then width descending
 		keys.sort(function(a, b){
-				return a - b;
-			if (a < b || a > b)
-				return a - b;
-			return matches[b] - matches[a];
+			return a - b;
 		});
 		// Step through frames saving only the biggest bottom-up frames
 		// thanks to the sort order. This relies on the tree property
 		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
 		for (var k in keys) {
 			var x = parseFloat(keys[k]);
 			var w = matches[keys[k]];
-			if (x >= lastx + lastw) {
+			if (x >= lastx + lastw - fudge) {
 				count += w;
 				lastx = x;
 				lastw = w;
@@ -970,13 +1012,17 @@ my $inc = <<INC;
 INC
 $im->include($inc);
 $im->filledRectangle(0, 0, $imagewidth, $imageheight, 'url(#background)');
-my ($white, $black, $vvdgrey, $vdgrey) = (
+my ($white, $black, $vvdgrey, $vdgrey, $dgrey) = (
 	$im->colorAllocate(255, 255, 255),
 	$im->colorAllocate(0, 0, 0),
 	$im->colorAllocate(40, 40, 40),
 	$im->colorAllocate(160, 160, 160),
+	$im->colorAllocate(200, 200, 200),
     );
 $im->stringTTF($black, $fonttype, $fontsize + 5, 0.0, int($imagewidth / 2), $fontsize * 2, $titletext, "middle");
+if ($subtitletext ne "") {
+	$im->stringTTF($vdgrey, $fonttype, $fontsize, 0.0, int($imagewidth / 2), $fontsize * 4, $subtitletext, "middle");
+}
 $im->stringTTF($black, $fonttype, $fontsize, 0.0, $xpad, $imageheight - ($ypad2 / 2), " ", "", 'id="details"');
 $im->stringTTF($black, $fonttype, $fontsize, 0.0, $xpad, $fontsize * 2,
     "Reset Zoom", "", 'id="unzoom" onclick="unzoom()" style="opacity:0.0;cursor:pointer"');
@@ -1017,11 +1063,12 @@ while (my ($id, $node) = each %Node) {
 	} else {
 		my $pct = sprintf "%.2f", ((100 * $samples) / ($timemax * $factor));
 		my $escaped_func = $func;
+		# clean up SVG breaking characters:
 		$escaped_func =~ s/&/&amp;/g;
 		$escaped_func =~ s/</&lt;/g;
 		$escaped_func =~ s/>/&gt;/g;
 		$escaped_func =~ s/"/&quot;/g;
-		$escaped_func =~ s/_\[[kw]\]$//;	# strip any annotation
+		$escaped_func =~ s/_\[[kwij]\]$//;	# strip any annotation
 		unless (defined $delta) {
 			$info = "$escaped_func ($samples_txt $countname, $pct%)";
 		} else {
@@ -1041,8 +1088,10 @@ while (my ($id, $node) = each %Node) {
 	$im->group_start($nameattr);
 
 	my $color;
-	if ($func eq "-") {
+	if ($func eq "--") {
 		$color = $vdgrey;
+	} elsif ($func eq "-") {
+		$color = $dgrey;
 	} elsif (defined $delta) {
 		$color = color_scale($delta, $maxdelta);
 	} elsif ($palette) {
@@ -1055,7 +1104,7 @@ while (my ($id, $node) = each %Node) {
 	my $chars = int( ($x2 - $x1) / ($fontsize * $fontwidth));
 	my $text = "";
 	if ($chars >= 3) { # room for one char plus two dots
-		$func =~ s/_\[[kw]\]$//;	# strip any annotation
+		$func =~ s/_\[[kwij]\]$//;	# strip any annotation
 		$text = substr $func, 0, $chars;
 		substr($text, -2, 2) = ".." if $chars < length $func;
 		$text =~ s/&/&amp;/g;

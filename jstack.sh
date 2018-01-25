@@ -4,13 +4,16 @@
 PATH=/bin:/usr/bin:$PATH
 HOSTNAME=$(uname -n)
 TS=`date +%Y%m%d-%T`
+#DIR
 WEBDIR=/usr/share/pcp/jsdemos/jstack
-WDIR=/mnt/logs/pcp/generic/JSTACK
-BDIR=/var/lib/pcp/pmdas/generic/BINFlameGraph
+WDIR=/var/log/pcp/vector/JSTACK
+BDIR=/var/lib/pcp/pmdas/vector/BINFlameGraph
 THDIR=/apps/tomcat/logs/cores
 #FILE
 THSVG=$WEBDIR/threadump-history.svg
+S3THSVG=threadump-history
 DEMOSVG=$WEBDIR/threadump-Demo.svg
+S3DEMOSVG=threadump-Demo
 #
 if [ ! -d "$WDIR" ];
 then
@@ -39,21 +42,21 @@ for i in `ps -e|grep java|awk '{print $1}'`
     j=$(( $j + 1 ))
    done
 j=0
-$BDIR/stackcollapse-jstack.pl < $WDIR/jstack.out.$i > $WDIR/jstack.out.$i-folded
+$BDIR/stackcollapse-jstack.pl < $WDIR/jstack.out.$i > $WDIR/jstack.out.$i-folded  
 $BDIR/flamegraph.pl < $WDIR/jstack.out.$i-folded > $WEBDIR/jstack-$i-PID.svg
 /bin/rm $WDIR/jstack.out.$i
 /bin/rm $WDIR/jstack.out.$i-folded
 done
 
-if  ls $THDIR/threaddump*.txt &> /dev/null; then
+if  ls $THDIR/threaddump*.txt &> /dev/null; then 
 /bin/cat $THDIR/threaddump*.txt > $WDIR/all-threaddump.txt
-$BDIR/stackcollapse-jstack.pl < $WDIR/all-threaddump.txt >$WDIR/out.folded
-$BDIR/flamegraph.pl < $WDIR/out.folded > $THSVG
+$BDIR/stackcollapse-jstack.pl < $WDIR/all-threaddump.txt >$WDIR/out.folded  
+$BDIR/flamegraph.pl < $WDIR/out.folded > $THSVG 
 else
 # For Demo purpose only
-/bin/cat /var/lib/pcp/pmdas/generic/JSTACK/threaddump*.txt > $WDIR/all-threaddump.txt
-$BDIR/stackcollapse-jstack.pl < $WDIR/all-threaddump.txt >$WDIR/out.folded
-$BDIR/flamegraph.pl < $WDIR/out.folded > $DEMOSVG
+/bin/cat /var/lib/pcp/pmdas/vector/JSTACK/threaddump*.txt > $WDIR/all-threaddump.txt
+$BDIR/stackcollapse-jstack.pl < $WDIR/all-threaddump.txt >$WDIR/out.folded  
+$BDIR/flamegraph.pl < $WDIR/out.folded > $DEMOSVG 
 fi
 
 /bin/rm $WDIR/out.folded

@@ -1,12 +1,11 @@
-Generic PMDA
-============
+Vector PMDA
+===========
 
-This PMDA is a **temporary hack** to support CPU [Flame Graphs](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html) and Disk Latency Heat Maps on [Vector](https://github.com/Netflix/vector). This solution is far from ideal and **will be deprecated** once the the widgets and PMDAs are ready. Two issues are being used to track the development of the new solution:
+PMDA to provide enhanced analysis reports for Vector.
 
-* [github.com/Netflix/vector/issues/7](https://github.com/Netflix/vector/issues/7)
-* [github.com/Netflix/vector/issues/74](https://github.com/Netflix/vector/issues/74)
+See http://getvector.io/docs/cpu-flame-graphs.html
 
-**WARNING:** This PMDA was not *properly* tested. Use at your own risk.
+**WARNING:** This is a work in progress. Use at your own risk.
 
 Metrics
 =======
@@ -17,9 +16,7 @@ by this PMDA.
 Once the PMDA has been installed, the following command will list all
 the available metrics and their explanatory "help" text:
 
-```
-$ pminfo -fT generic
-```
+	$ pminfo -fT vector
 
 Dependencies
 ============
@@ -33,9 +30,7 @@ You **must** have these dependencies installed in order to successfully generate
 Installation
 ============
 
-```
-$ cd $PCP_PMDAS_DIR/generic
-```
+ +  # cd $PCP_PMDAS_DIR/vector
 
  +  Check that there is no clash in the Performance Metrics Domain
     defined in ./domain.h and the other PMDAs currently in use (see
@@ -44,11 +39,9 @@ $ cd $PCP_PMDAS_DIR/generic
 
  +  Then simply use
 
-```
-$ ./Install
-```
+	# ./Install
 
- +  and choose both the "collector" and "monitor" installation
+    and choose both the "collector" and "monitor" installation
     configuration options -- everything else is automated.
 
 De-installation
@@ -56,15 +49,13 @@ De-installation
 
  +  Simply use
 
-```
-$ cd $PCP_PMDAS_DIR/generic
-$ ./Remove
-```
+        # cd $PCP_PMDAS_DIR/vector
+	# ./Remove
 
 Troubleshooting
 ===============
 
  +  After installing or restarting the agent, the PMCD log file
     ($PCP_LOG_DIR/pmcd/pmcd.log) and the PMDA log file
-    ($PCP_LOG_DIR/pmcd/generic.log) should be checked for any warnings
+    ($PCP_LOG_DIR/pmcd/vector.log) should be checked for any warnings
     or errors.

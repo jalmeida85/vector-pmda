@@ -4,7 +4,7 @@
 
 #include <stdpmid>
 
-root { generic }
+root { vector }
 
 #include "pmns"
 
