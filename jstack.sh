@@ -5,7 +5,7 @@ PATH=/bin:/usr/bin:$PATH
 HOSTNAME=$(uname -n)
 TS=`date +%Y%m%d-%T`
 #DIR
-WEBDIR=/usr/share/pcp/jsdemos/jstack
+WEBDIR=/usr/share/pcp/webapps/jstack
 WDIR=/var/log/pcp/vector/JSTACK
 BDIR=/var/lib/pcp/pmdas/vector/BINFlameGraph
 THDIR=/apps/tomcat/logs/cores
@@ -85,7 +85,7 @@ function create_gnu_index ()
     #[[ $# != 3 ]] && echo "bad args. do: $FUNCNAME '/DOCUMENT_ROOT/' '/' 'gnu.askapache.com'" && exit 2
 
     # D is the doc_root containing the site
-    local L= D="/usr/share/pcp/jsdemos/jstack/" SUBDIR="jstack" DOMAIN="http://$HOSTNAME/" F=
+    local L= D="/usr/share/pcp/webapps/jstack/" SUBDIR="jstack" DOMAIN="http://$HOSTNAME/" F=
 
     # The index.html file to create
     F="${D}index.html"

@@ -2,7 +2,7 @@
 TS=`date +%Y%m%d-%T`
 
 #DIR
-WEBDIR=/usr/share/pcp/jsdemos/heatmap
+WEBDIR=/usr/share/pcp/webapps/heatmap
 WDIR=/var/log/pcp/vector/HEATMAP
 BDIR=/var/lib/pcp/pmdas/vector/BINHeatMap
 #FILE

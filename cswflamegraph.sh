@@ -31,7 +31,7 @@ HOSTNAME=$(uname -n)
 # pcp pmda paths
 METRIC=cswflamegraph
 PMDA_DIR=${0%/*}
-WEBSITE_DIR=/usr/share/pcp/jsdemos/$METRIC
+WEBSITE_DIR=/usr/share/pcp/webapps/$METRIC
 WORKING_DIR=/var/log/pcp/vector/$METRIC
 FG_DIR=/var/lib/pcp/pmdas/vector/BINFlameGraph
 BCC_DIR=/usr/share/bcc/tools
