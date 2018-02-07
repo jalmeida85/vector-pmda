@@ -109,7 +109,12 @@ function _pid_to_java_home {
 	# fetch java home by parsing java's /proc/$pid/exe symlink destination.
 	# could also use stat %N, but it adds quotes.
 	set -- $(ls -l /proc/$pid/exe)
-	echo ${11%%/jre/bin/java}
+	if [[ "${11}" != "${11%%/jre/bin/java}" ]] 	
+	then 
+		echo ${11%%/jre/bin/java}
+	else 
+		echo ${11%%/bin/java}
+	fi
 }
 
 # given a pid, generate a /tmp/perf-PID.map symbol file using Java
@@ -227,7 +232,7 @@ function _container_java_map {
 	local opts=""
 	(( PM_UNINLINED )) && opts="unfoldall"
 	nsenter -t $pid -m -p -u -S $uid -G $gid sh -c '
-		cd '$pma'
+		cd '$nspma'
 		'$java_home'/bin/java -cp attach-main.jar:'$java_home'/lib/tools.jar net.virtualvoid.perf.AttachOnce '$nspid' '$opts' > /dev/null' > /dev/null
 
 	# copy the map file back to the host
