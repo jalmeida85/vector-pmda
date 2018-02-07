@@ -37,6 +37,10 @@ Installation
     $PCP_PMCDCONF_PATH).  If there is, edit ./domain.h to choose another
     domain number.
 
+ +  Build the PMDA
+
+	# ./make
+
  +  Then simply use
 
 	# ./Install
