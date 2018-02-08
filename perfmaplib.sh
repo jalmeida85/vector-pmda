@@ -231,7 +231,7 @@ function _container_java_map {
 	local gid=$(_pid_to_uid $pid)
 	local opts=""
 	(( PM_UNINLINED )) && opts="unfoldall"
-	nsenter -t $pid -m -p -u -S $uid -G $gid sh -c '
+	nsenter -t $pid -a  -S $uid -G $gid sh -c '
 		cd '$nspma'
 		'$java_home'/bin/java -cp attach-main.jar:'$java_home'/lib/tools.jar net.virtualvoid.perf.AttachOnce '$nspid' '$opts' > /dev/null' > /dev/null
 
