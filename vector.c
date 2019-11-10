@@ -15,6 +15,9 @@
 #define WORKING_DIR "/var/log/pcp/vector"
 #define VECTOR_DIR "/var/lib/pcp/pmdas/vector"
 
+#define PDU_FLAG_CONTAINER (1U<<6)
+#define PCP_ATTR_CONTAINER 15
+
 /*
  * Vector PMDA
  * ===========
@@ -223,7 +226,7 @@ badinput(char *str)
 	}
 	return 0;
 }
-	
+
 
 /*
  * vector_fetchCallBack() schedules tasks.
@@ -232,7 +235,7 @@ static int
 vector_store(pmResult *result, pmdaExt *pmda)
 {
 	pmValueSet *vsp = result->vset[0];
-	__pmID_int *idp = (__pmID_int *)&vsp->pmid;
+	//__pmID_int *idp = (__pmID_int *)&vsp->pmid;
 	pmAtomValue av;
 	static char statusmsg[256];
 	char cmd[256];
@@ -240,7 +243,7 @@ vector_store(pmResult *result, pmdaExt *pmda)
 	char *status, *secs, *metricname;
 	int ctx;
 
-	if (idp->cluster != 0)
+	if (pmID_cluster(vsp->pmid) != 0)
 		return PM_ERR_PMID;
 	if (vsp->numval != 1)
 		return PM_ERR_PMID;
@@ -253,7 +256,7 @@ vector_store(pmResult *result, pmdaExt *pmda)
 	sprintf(ctxstr, "%d", ctx);
 	setenv("PCP_CONTEXT", ctxstr, 1);
 
-	switch (idp->item) {
+	switch (pmID_item(vsp->pmid)) {
 	case VECTOR_TASK_CPUFLAMEGRAPH:
 	case VECTOR_TASK_PNAMECPUFLAMEGRAPH:
 	case VECTOR_TASK_UNINLINEDCPUFLAMEGRAPH:
@@ -263,7 +266,7 @@ vector_store(pmResult *result, pmdaExt *pmda)
 	case VECTOR_TASK_CSWFLAMEGRAPH:
 	case VECTOR_TASK_OFFCPUFLAMEGRAPH:
 	case VECTOR_TASK_OFFWAKEFLAMEGRAPH:
-		metricname = tasknames[idp->item];
+		metricname = tasknames[pmID_item(vsp->pmid)];
 
 		// fetch optional seconds argument
 		secs = "";
@@ -297,7 +300,7 @@ vector_store(pmResult *result, pmdaExt *pmda)
 				return PM_ERR_AGAIN;
 		}
 
-		// disk I/O latency heat map 
+		// disk I/O latency heat map
 		if (system(VECTOR_DIR "/heatmap.sh &") != 0) {
 			fprintf(stderr, "system failed: %s\n",
 			    pmErrStr(- oserror()));
@@ -332,22 +335,23 @@ vector_store(pmResult *result, pmdaExt *pmda)
 static int
 vector_fetchCallBack(pmdaMetric *mdesc, unsigned int inst, pmAtomValue *atom)
 {
-	__pmID_int *idp = (__pmID_int *)&(mdesc->m_desc.pmid);
+	unsigned int cluster = pmID_cluster(mdesc->m_desc.pmid);
+	unsigned int item = pmID_item(mdesc->m_desc.pmid);
 	static char statusmsg[256];
 	char *metricname;
 	int ctx;
 
-	if (idp->cluster != 0)
+	if (cluster != 0)
 		return PM_ERR_PMID;
 	else if (inst != PM_IN_NULL)
 		return PM_ERR_INST;
 
 	ctx = pmdaGetContext();
 
-	if (idp->cluster != 0)
+	if (cluster != 0)
 		return PM_ERR_PMID;
 
-	switch (idp->item) {
+	switch (item) {
 	case VECTOR_TASK_CPUFLAMEGRAPH:
 	case VECTOR_TASK_PNAMECPUFLAMEGRAPH:
 	case VECTOR_TASK_UNINLINEDCPUFLAMEGRAPH:
@@ -357,7 +361,7 @@ vector_fetchCallBack(pmdaMetric *mdesc, unsigned int inst, pmAtomValue *atom)
 	case VECTOR_TASK_CSWFLAMEGRAPH:
 	case VECTOR_TASK_OFFCPUFLAMEGRAPH:
 	case VECTOR_TASK_OFFWAKEFLAMEGRAPH:
-		metricname = tasknames[idp->item];
+		metricname = tasknames[item];
 		if (hasstatus(metricname, ctx)) {
 			atom->cp = getstatus(metricname, statusmsg, sizeof (statusmsg), ctx);
 			if (strcmp(atom->cp, "DONE") == 0) {
@@ -418,7 +422,7 @@ void
 vector_init(pmdaInterface *dp)
 {
 	if (isDSO) {
-		int sep = __pmPathSeparator();
+		int sep = pmPathSeparator();
 		snprintf(mypath, sizeof(mypath), "%s%c" "vector" "%c" "help",
 		    pmGetConfig("PCP_PMDAS_DIR"), sep, sep);
 		pmdaDSO(dp, PMDA_INTERFACE_6, "vector DSO", mypath);
@@ -441,16 +445,16 @@ vector_init(pmdaInterface *dp)
  */
 int main(int argc, char **argv)
 {
-	int sep = __pmPathSeparator();
+	int sep = pmPathSeparator();
 	pmdaInterface desc;
 
 	isDSO = 0;
-	__pmSetProgname(argv[0]);
-	__pmGetUsername(&username);
+	pmSetProgname(argv[0]);
+	pmGetUsername(&username);
 
 	snprintf(mypath, sizeof(mypath), "%s%c" "vector" "%c" "help",
 	    pmGetConfig("PCP_PMDAS_DIR"), sep, sep);
-	pmdaDaemon(&desc, PMDA_INTERFACE_6, pmProgname, VECTOR,
+	pmdaDaemon(&desc, PMDA_INTERFACE_6, pmGetProgname(), VECTOR,
 	    "vector.log", mypath);
 
 	pmdaGetOptions(argc, argv, &opts, &desc);
